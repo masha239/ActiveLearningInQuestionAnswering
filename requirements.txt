@@ -1,2 +1,4 @@
-numpy
-pandas
+git+https://github.com/huggingface/transformers.git
+datasets
+huggingface-hub
+apache_beam
