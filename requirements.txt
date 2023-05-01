@@ -1,5 +1,9 @@
 transformers
 datasets
+sentencepiece
+wandb
+tensorboard
 torch
+flax
 apache_beam
 jsonline
