@@ -2,3 +2,4 @@ matplotlib
 git+https://github.com/huggingface/transformers.git
 huggingface-hub
 datasets
+torch
