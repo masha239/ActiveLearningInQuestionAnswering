@@ -40,7 +40,7 @@ def get_data(df_path, answer_type, sample_cnt=None):
     return train_dataset, test_dataset
 
 
-def create_config(model_dir=None):
+def create_config(device, model_dir=None):
     if model_dir is None:
         model_dir = f'qa_{int(datetime.datetime.now().timestamp())}'
 
