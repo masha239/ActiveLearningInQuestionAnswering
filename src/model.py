@@ -148,7 +148,7 @@ class ActiveQA:
     def _predict_probs(self, dataset, normalized=True):
         predictions = self.trainer.predict(dataset).predictions
         dataloader = data_utils.DataLoader(
-            torch.tensor([x + [0] * self.config['max_length'] - len(x) for x in dataset['input_ids']]),
+            torch.tensor([x + [0] * (self.config['max_length'] - len(x)) for x in dataset['input_ids']]),
             predictions,
             batch_size=self.config['per_device_eval_batch_size'],
             shuffle=False
