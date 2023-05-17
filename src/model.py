@@ -151,8 +151,8 @@ class ActiveQA:
         predictions = self.trainer.predict(dataset).predictions
         dataset = Dataset.from_dict(
             {
-                'input_ids': [x + [0] * (self.config['max_length'] - len(x)) for x in dataset['input_ids']],
-                'labels': predictions
+                'input_ids': torch.tensor([x + [0] * (self.config['max_length'] - len(x)) for x in dataset['input_ids']]),
+                'labels': torch.tensor(predictions)
             }
         )
         dataloader = data_utils.DataLoader(
