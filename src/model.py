@@ -67,6 +67,7 @@ def compute_metrics(eval_pred, multilabel=False, calc_all=True):
 
     return {k: round(v, 4) for k, v in result.items()}
 
+
 class ActiveQA:
     def __init__(self, config):
         self.config = config
@@ -167,7 +168,7 @@ class ActiveQA:
         df = pd.DataFrame(res_dict)
         df = df.sort_values('prob', ascending=False).groupby('document_id', as_index=False).first()
         df = df.sort_values('document_id')
-        metrics = self.trainer.compute_metrics((df['labels'], test_text['answers']), multilabel=True, calc_all=True)
+        metrics = self.trainer.compute_metrics((df['labels'], test_text['labels']), multilabel=True, calc_all=True)
         return metrics
 
     def predict(self, input_text):
