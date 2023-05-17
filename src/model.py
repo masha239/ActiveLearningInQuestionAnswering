@@ -147,14 +147,17 @@ class ActiveQA:
 
     def _predict_probs(self, dataset, normalized=True):
         predictions = self.trainer.predict(dataset).predictions
-        dataloader = data_utils.DataLoader(predictions, batch_size=self.config['per_device_eval_batch_size'],
-                                           shuffle=False)
+        dataloader = data_utils.DataLoader(
+            torch.tensor([x + [0] * self.config['max_length'] - len(x) for x in dataset['input_ids']]),
+            predictions,
+            batch_size=self.config['per_device_eval_batch_size'],
+            shuffle=False
+        )
         probs_list = []
         labels_list = []
         with torch.no_grad():
-            for inputs in dataloader:
-                inputs = inputs.to(self.config['device'])
-                labels = self.model.generate(inputs, generation_config=self.generation_config)
+            for inputs, labels in dataloader:
+                inputs, labels = inputs.to(self.config['device']), labels.to(self.config['device'])
                 logits = self.model(input_ids=inputs, labels=labels).logits
                 probs_list += self._get_probs_from_logits(logits, labels, normalized)
                 labels_list += labels
