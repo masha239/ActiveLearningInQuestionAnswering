@@ -71,7 +71,6 @@ def compute_metrics(eval_pred, multilabel=False, calc_all=True):
 class ActiveQA:
     def __init__(self, config):
         self.config = config
-        self._reset_models()
         self.model_is_trained = False
 
         self.training_args = Seq2SeqTrainingArguments(
@@ -94,10 +93,12 @@ class ActiveQA:
             save_total_limit=3,
         )
 
+        self._reset_model()
+
         self.generation_config = GenerationConfig.from_pretrained("t5-small")
         self.generation_config.max_length = self.config['max_length_answer']
 
-    def _reset_models(self):
+    def _reset_model(self):
         self.model = T5ForConditionalGeneration.from_pretrained(
             self.config['checkpoint_answer']
         ).to(self.config['device'])
@@ -106,6 +107,14 @@ class ActiveQA:
             tokenizer=self.tokenizer,
             model=self.model,
             max_length=self.config['max_length']
+        )
+        self.trainer = Seq2SeqTrainer(
+            model=self.model,
+            args=self.training_args,
+            tokenizer=self.tokenizer,
+            data_collator=self.data_collator,
+            compute_metrics=compute_metrics,
+            callbacks=[EarlyStoppingCallback(early_stopping_patience=2)],
         )
 
     def load_from_disk(self, path):
@@ -117,19 +126,10 @@ class ActiveQA:
             pickle.dump(self.__dict__, f)
 
     def train(self, train_dataset=None, test_dataset=None):
-        self.trainer = Seq2SeqTrainer(
-            model=self.model,
-            args=self.training_args,
-            train_dataset=train_dataset,
-            eval_dataset=test_dataset,
-            tokenizer=self.tokenizer,
-            data_collator=self.data_collator,
-            compute_metrics=compute_metrics,
-            callbacks=[EarlyStoppingCallback(early_stopping_patience=2)],
-        )
-
+        self.trainer.train_dataset = train_dataset
+        self.trainer.eval_dataset = test_dataset
         self.trainer.train()
-        self.models_is_trained = True
+        self.model_is_trained = True
 
         return self.trainer.state.log_history
 
