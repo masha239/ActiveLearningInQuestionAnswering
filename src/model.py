@@ -9,7 +9,7 @@ from transformers import EarlyStoppingCallback, GenerationConfig, DataCollatorWi
     AutoModelForSequenceClassification, TrainingArguments
 from transformers import Seq2SeqTrainingArguments, Seq2SeqTrainer, DataCollatorForSeq2Seq
 from transformers import T5ForConditionalGeneration, T5Tokenizer
-from metrics import compute_metrics, compute_metrics_binary
+from .metrics import compute_metrics, compute_metrics_binary
 
 
 class CustomDataset(torch.utils.data.Dataset):
