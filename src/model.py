@@ -2,78 +2,35 @@ import gc
 import pickle
 import random
 
-import evaluate
-import numpy as np
 import pandas as pd
 import torch
 import torch.utils.data as data_utils
-from transformers import EarlyStoppingCallback, GenerationConfig
+from transformers import EarlyStoppingCallback, GenerationConfig, DataCollatorWithPadding, Trainer, AutoTokenizer, \
+    AutoModelForSequenceClassification, TrainingArguments
 from transformers import Seq2SeqTrainingArguments, Seq2SeqTrainer, DataCollatorForSeq2Seq
 from transformers import T5ForConditionalGeneration, T5Tokenizer
-from datasets import Dataset
+from metrics import compute_metrics, compute_metrics_binary
 
 
-rouge = evaluate.load('rouge')
-bleu = evaluate.load("bleu")
-exact_match = evaluate.load("exact_match")
-accuracy = evaluate.load("accuracy")
+class CustomDataset(torch.utils.data.Dataset):
+    def __init__(self, input_ids, labels):
+        self.input_ids = torch.tensor(input_ids)
+        self.labels = torch.tensor(labels)
 
-tokenizer = T5Tokenizer.from_pretrained('t5-small', padding=True)
+    def __len__(self):
+        return len(self.input_ids)
+
+    def __getitem__(self, idx):
+        return self.input_ids[idx], self.labels[idx]
 
 
-def compute_metrics(eval_pred, multilabel=False, calc_all=True):
-    predictions, labels = eval_pred
-
-    decoded_preds = tokenizer.batch_decode(predictions, skip_special_tokens=True)
-    labels = np.where(labels != -100, labels, tokenizer.pad_token_id)
-    if not multilabel:
-        decoded_labels = tokenizer.batch_decode(labels, skip_special_tokens=True)
-    else:
-        decoded_labels = [tokenizer.batch_decode(l, skip_special_tokens=True) for l in labels]
-
-    result = dict()
-    rouge_result = rouge.compute(predictions=decoded_preds, references=decoded_labels)
-    result['rouge1'] = rouge_result['rouge1']
-    result['rouge2'] = rouge_result['rouge2']
-
-    if calc_all:
-        bleu_result = bleu.compute(predictions=decoded_preds, references=decoded_labels)
-        result['Bleu'] = bleu_result['bleu']
-
-        if not multilabel:
-            em_result = exact_match.compute(
-                predictions=decoded_preds,
-                references=decoded_labels,
-                regexes_to_ignore=["the "],
-                ignore_case=True,
-                ignore_punctuation=True
-            )
-            result['EM'] = em_result['exact_match']
-        else:
-            em_results = []
-            for pred, doc_labels in zip(decoded_preds, decoded_labels):
-                max_em_result = 0
-                for label in doc_labels:
-                    em_result = exact_match.compute(
-                        predictions=[pred],
-                        references=[label],
-                        ignore_case=True,
-                        ignore_punctuation=True
-                    )
-                    max_em_result = max(max_em_result, em_result['exact_match'])
-                em_results.append(max_em_result)
-            result['EM'] = np.mean(em_results)
-
-    prediction_lens = [np.count_nonzero(pred != tokenizer.pad_token_id) for pred in predictions]
-    result["gen_len"] = np.mean(prediction_lens)
-
-    return {k: round(v, 4) for k, v in result.items()}
+def remove_logits(logits, labels):
+    return torch.tensor([]), labels
 
 
 class ActiveQA:
     def __init__(self, config):
         self.config = config
-        self.model_is_trained = False
 
         self.training_args = Seq2SeqTrainingArguments(
             output_dir=self.config['model_output_dir'],
@@ -95,12 +52,26 @@ class ActiveQA:
             save_total_limit=3,
         )
 
-        self._reset_model()
+        self.training_args_binary = TrainingArguments(
+            output_dir="binary_model",
+            learning_rate=self.config['learning_rate_binary'],
+            per_device_train_batch_size=self.config['per_device_train_batch_size_binary'],
+            per_device_eval_batch_size=self.config['per_device_eval_batch_size_binary'],
+            num_train_epochs=self.config['num_train_epochs_binary'],
+            weight_decay=self.config['weight_decay_binary'],
+            evaluation_strategy="epoch",
+            save_strategy="epoch",
+            load_best_model_at_end=True,
+            report_to="none",
+            push_to_hub=False,
+        )
 
-        self.generation_config = GenerationConfig.from_pretrained("t5-small")
+        self._reset_models()
+
+        self.generation_config = GenerationConfig.from_pretrained(self.config['checkpoint_answer'])
         self.generation_config.max_length = self.config['max_length_answer']
 
-    def _reset_model(self):
+    def _reset_models(self):
         self.model = T5ForConditionalGeneration.from_pretrained(
             self.config['checkpoint_answer']
         ).to(self.config['device'])
@@ -110,6 +81,7 @@ class ActiveQA:
             model=self.model,
             max_length=self.config['max_length']
         )
+
         self.trainer = Seq2SeqTrainer(
             model=self.model,
             args=self.training_args,
@@ -117,6 +89,21 @@ class ActiveQA:
             data_collator=self.data_collator,
             compute_metrics=compute_metrics,
             callbacks=[EarlyStoppingCallback(early_stopping_patience=2)],
+        )
+
+        self.model_binary = AutoModelForSequenceClassification.from_pretrained(
+            self.config['checkpoint_binary'],
+            num_labels=2
+        ).to(self.config['device'])
+        self.tokenizer_binary = AutoTokenizer.from_pretrained(self.config['checkpoint_binary'])
+        self.data_collator_binary = DataCollatorWithPadding(tokenizer=self.tokenizer_binary)
+
+        self.trainer_binary = Trainer(
+            model=self.model_binary,
+            args=self.training_args_binary,
+            tokenizer=self.tokenizer_binary,
+            data_collator=self.data_collator_binary,
+            compute_metrics=compute_metrics_binary,
         )
 
     def load_from_disk(self, path):
@@ -131,9 +118,15 @@ class ActiveQA:
         self.trainer.train_dataset = train_dataset
         self.trainer.eval_dataset = test_dataset
         self.trainer.train()
-        self.model_is_trained = True
 
         return self.trainer.state.log_history
+
+    def train_binary(self, train_dataset=None, test_dataset=None):
+        self.trainer_binary.train_dataset = train_dataset
+        self.trainer_binary.eval_dataset = test_dataset
+        self.trainer_binary.train()
+
+        return self.trainer_binary.state.log_history
 
     def _get_probs_from_logits(self, logits, labels, normalized=True):
         answer = []
@@ -149,14 +142,12 @@ class ActiveQA:
 
     def _predict_probs(self, dataset, normalized=True):
         predictions = self.trainer.predict(dataset).predictions
-        dataset = Dataset.from_dict(
-            {
-                'input_ids': torch.tensor([x + [0] * (self.config['max_length'] - len(x)) for x in dataset['input_ids']]),
-                'labels': torch.tensor(predictions)
-            }
+        new_dataset = CustomDataset(
+            torch.tensor([x + [0] * (self.config['max_length'] - len(x)) for x in dataset['input_ids']]),
+            predictions
         )
         dataloader = data_utils.DataLoader(
-            dataset,
+            new_dataset,
             batch_size=self.config['per_device_eval_batch_size'],
             shuffle=False
         )
@@ -166,14 +157,18 @@ class ActiveQA:
             for inputs, labels in dataloader:
                 inputs, labels = inputs.to(self.config['device']), labels.to(self.config['device'])
                 logits = self.model(input_ids=inputs, labels=labels).logits
-                probs_list += self._get_probs_from_logits(logits, labels, normalized)
+                probs = self._get_probs_from_logits(logits, labels, normalized)
+                probs_list += probs
                 labels_list += labels
         labels = [l.cpu().numpy() for l in labels_list]
+        last_d = -1
         return {'prob': probs_list, 'labels': labels}
+
+    def predict_probs_binary(self, dataset):
+        pass
 
     def evaluate(self, test_dataset, test_text):
         res_dict = self._predict_probs(test_dataset)
-        res_dict['labels'] = res_dict['labels']
         res_dict['document_id'] = test_dataset['document_id']
         df = pd.DataFrame(res_dict)
         df = df.sort_values('prob', ascending=False).groupby('document_id', as_index=False).first()

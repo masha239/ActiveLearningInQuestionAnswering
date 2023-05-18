@@ -54,6 +54,7 @@ def create_config(device, answer_type, model_dir=None, config_update=None):
 
     config = {
         'checkpoint_answer': 't5-small',
+        'checkpoint_binary': 'distilbert-base-uncased',
         'max_length': 512,
         'max_length_answer': max_length_answer,
         'learning_rate': 1e-5,
@@ -69,7 +70,12 @@ def create_config(device, answer_type, model_dir=None, config_update=None):
         'step_document_cnt': 500,
         'random_sample_fraction': 1.0,
         'model_output_dir': os.path.join(model_dir, 'model'),
-        'log_path': os.path.join(model_dir, 'logs.pkl')
+        'log_path': os.path.join(model_dir, 'logs.pkl'),
+        'learning_rate_binary': 1e-5,
+        'weight_decay_binary': 1e-2,
+        'per_device_train_batch_size_binary': 4,
+        'per_device_eval_batch_size_binary': 16,
+        'num_train_epochs_binary': 1,
     }
 
     if config_update is not None:
