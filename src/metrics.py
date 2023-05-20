@@ -13,12 +13,12 @@ def seed_everything(seed_val=0):
     torch.cuda.manual_seed_all(seed_val)
 
 
-rouge = evaluate.load('rouge')
-bleu = evaluate.load("bleu")
-exact_match = evaluate.load("exact_match")
-accuracy = evaluate.load("accuracy")
-f1 = evaluate.load("f1")
-roc_auc_score = evaluate.load("roc_auc")
+rouge = evaluate.load('rouge', keep_in_memory=True)
+bleu = evaluate.load("bleu", keep_in_memory=True)
+exact_match = evaluate.load("exact_match", keep_in_memory=True)
+accuracy = evaluate.load("accuracy", keep_in_memory=True)
+f1 = evaluate.load("f1", keep_in_memory=True)
+roc_auc_score = evaluate.load("roc_auc", keep_in_memory=True)
 
 tokenizer = T5Tokenizer.from_pretrained('t5-small', padding=True)
 
