@@ -24,9 +24,9 @@ def prepare_train_binary(dataset):
 
 def choose_best_pairs(probs, ids, part_ids):
     df = pd.DataFrame({'prob': probs, 'idx': ids, 'part_idx': part_ids})
-    df = df.sort_values('prob', ascending=False).groupby('document_id', as_index=False).first()
-    df = df.sort_values('document_id')
-    return [(document_id, part_idx) for (document_id, part_idx) in zip(df['document_id'], df['part_idx'])]
+    df = df.sort_values('prob', ascending=False).groupby('idx', as_index=False).first()
+    df = df.sort_values('idx')
+    return [(document_id, part_idx) for (document_id, part_idx) in zip(df['idx'], df['part_idx'])]
 
 
 def get_probs_from_logits(logits, labels, normalized=True):
