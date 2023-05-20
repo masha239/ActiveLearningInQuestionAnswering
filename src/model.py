@@ -24,10 +24,6 @@ class CustomDataset(torch.utils.data.Dataset):
         return self.input_ids[idx], self.labels[idx]
 
 
-def remove_logits(logits, labels):
-    return torch.tensor([]), labels
-
-
 class ActiveQA:
     def __init__(self, config):
         self.config = config
@@ -62,7 +58,7 @@ class ActiveQA:
             evaluation_strategy="epoch",
             save_strategy="epoch",
             logging_strategy="epoch",
-            metric_for_best_model='roc_auc_score',
+            metric_for_best_model='roc_auc',
             load_best_model_at_end=True,
             logging_dir='logs',
             report_to="none",
