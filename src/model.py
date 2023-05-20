@@ -108,6 +108,7 @@ class ActiveQA:
             tokenizer=self.tokenizer_binary,
             data_collator=self.data_collator_binary,
             compute_metrics=compute_metrics_binary,
+            callbacks=[EarlyStoppingCallback(early_stopping_patience=2)],
         )
 
     def load_from_disk(self, path):
