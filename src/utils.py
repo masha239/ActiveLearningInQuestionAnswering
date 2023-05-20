@@ -89,7 +89,7 @@ def create_config(device, answer_type, model_dir=None, config_update=None):
 
 
 def get_train_test(dataset_path, test_size=0.05):
-    dataset = load_from_disk('/kaggle/working/nq-short-20000-16-8-tokenized')
+    dataset = load_from_disk(dataset_path)
     dataset = dataset.filter(lambda x: x['labels'] is not None)
     train_ids, test_ids = train_test_split(list(set(dataset['document_id'])), test_size=test_size)
     train_dataset = dataset.filter(lambda x: x['document_id'] in train_ids)

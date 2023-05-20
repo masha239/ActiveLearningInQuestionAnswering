@@ -3,6 +3,7 @@ import pickle
 import random
 
 import pandas as pd
+import numpy as np
 import torch
 import torch.utils.data as data_utils
 from transformers import EarlyStoppingCallback, GenerationConfig, DataCollatorWithPadding, Trainer, AutoTokenizer, \
@@ -10,6 +11,47 @@ from transformers import EarlyStoppingCallback, GenerationConfig, DataCollatorWi
 from transformers import Seq2SeqTrainingArguments, Seq2SeqTrainer, DataCollatorForSeq2Seq
 from transformers import T5ForConditionalGeneration, T5Tokenizer
 from src.metrics import compute_metrics, compute_metrics_binary
+from typing import NamedTuple
+from datasets import Dataset
+from random import random
+
+
+def prepare_train_binary(dataset):
+    k = np.mean(dataset['labels'])
+    coef = k / (1 - k)
+    return dataset.filter(lambda x: x['labels'] == 1 or random() < coef)
+
+
+def choose_best_pairs(probs, ids, part_ids):
+    df = pd.DataFrame({'prob': probs, 'idx': ids, 'part_idx': part_ids})
+    df = df.sort_values('prob', ascending=False).groupby('document_id', as_index=False).first()
+    df = df.sort_values('document_id')
+    return [(document_id, part_idx) for (document_id, part_idx) in zip(df['document_id'], df['part_idx'])]
+
+
+def get_probs_from_logits(logits, labels, normalized=True):
+    answer = []
+    probs = torch.softmax(logits, -1)
+    for sample_probs, sample_labels in zip(probs, labels):
+        p = 1.0
+        for idx, token in enumerate(sample_labels):
+            p *= sample_probs[idx][token].item()
+        if normalized:
+            p = p ** (1 / len(sample_labels))
+        answer.append(p)
+    return answer
+
+
+class ActiveLearningData(NamedTuple):
+    train_pool: Dataset
+    train_dataset: Dataset
+    train_bert: Dataset
+    test_dataset: Dataset
+    test_bert: Dataset
+    val_pool: Dataset
+    val_dataset: Dataset
+    val_bert: Dataset
+    val_answers: Dataset
 
 
 class CustomDataset(torch.utils.data.Dataset):
@@ -129,18 +171,6 @@ class ActiveQA:
 
         return self.trainer_binary.state.log_history
 
-    def _get_probs_from_logits(self, logits, labels, normalized=True):
-        answer = []
-        probs = torch.softmax(logits, -1)
-        for sample_probs, sample_labels in zip(probs, labels):
-            p = 1.0
-            for idx, token in enumerate(sample_labels):
-                p *= sample_probs[idx][token].item()
-            if normalized:
-                p = p ** (1 / len(sample_labels))
-            answer.append(p)
-        return answer
-
     def _predict_probs(self, dataset, normalized=True):
         predictions = self.trainer.predict(dataset).predictions
         new_dataset = CustomDataset(
@@ -158,14 +188,14 @@ class ActiveQA:
             for inputs, labels in dataloader:
                 inputs, labels = inputs.to(self.config['device']), labels.to(self.config['device'])
                 logits = self.model(input_ids=inputs, labels=labels).logits
-                probs = self._get_probs_from_logits(logits, labels, normalized)
+                probs = get_probs_from_logits(logits, labels, normalized)
                 probs_list += probs
                 labels_list += labels
-        labels = [l.cpu().numpy() for l in labels_list]
+        labels = [label.cpu().numpy() for label in labels_list]
         return {'prob': probs_list, 'labels': labels}
 
-    def predict_probs_binary(self, dataset):
-        pass
+    def _predict_probs_binary(self, dataset):
+        return self.trainer_binary.predict(dataset)[:, 1]
 
     def evaluate(self, test_dataset, test_text):
         res_dict = self._predict_probs(test_dataset)
@@ -191,8 +221,9 @@ class ActiveQA:
         else:
             raise ValueError(f"Unsupported unsertainty strategy {self.config['unsertainty_strategy']}")
 
-    def _choose_ids(self, dataset):
-        document_ids = list(set(dataset['document_id']))
+    def _choose_ids(self, data, ids_in_train, strategy):
+        document_ids = set(data.train_dataset['document_id'])
+        document_ids = list(document_ids - ids_in_train)
 
         random_ids_cnt = int(self.config['step_document_cnt'] * self.config['random_sample_fraction'])
         best_ids_cnt = self.config['step_document_cnt'] - random_ids_cnt
@@ -204,44 +235,69 @@ class ActiveQA:
         document_ids = list(set(document_ids) - random_ids)
         pool_ids = set(random.sample(document_ids, min(len(document_ids), self.config['pool_document_cnt'])))
 
-        filtered_dataset = dataset.filter(lambda x: x['document_id'] in pool_ids).remove_columns('labels')
-        probs = self._predict_probs(filtered_dataset)['prob']
-        best_ids = self._best_ids_from_probs(filtered_dataset['document_id'], probs, best_ids_cnt)
+        if strategy == 'binary':
+            bert_step = data.train_bert.filter(lambda x: x['document_id'] in pool_ids).remove_columns('labels')
+            bert_probs = self._predict_probs_binary(bert_step)
+            best_ids = self._best_ids_from_probs(bert_step['document_id'], bert_probs, best_ids_cnt)
+        elif strategy == 'answers':
+            pool_step = data.train_pool.filter(lambda x: x['document_id'] in pool_ids).remove_columns('labels')
+            probs = self._predict_probs(pool_step)['prob']
+            best_ids = self._best_ids_from_probs(pool_step['document_id'], probs, best_ids_cnt)
+        elif strategy == 'binary+answers':
+            bert_step = data.train_bert.filter(lambda x: x['document_id'] in pool_ids).remove_columns('labels')
+            bert_probs = self._predict_probs_binary(bert_step)
+            pairs = choose_best_pairs(bert_probs, bert_step['document_id'], bert_step['part_id'])
+            pool_step = data.train_pool.filter(lambda x: (x['document_id'], x['part_idx']) in pairs).remove_columns(
+                'labels')
+            probs = self._predict_probs(pool_step)['prob']
+            best_ids = self._best_ids_from_probs(pool_step['document_id'], probs, best_ids_cnt)
+        else:
+            raise ValueError(f'Unsupported strategy {strategy}')
 
         return random_ids.union(set(best_ids))
 
-    def emulate_active_learning(self, pool, test_dataset, val_dataset, val_answers, save_path=None):
-        document_ids = list(set(pool['document_id']))
+    def emulate_active_learning(self, data: ActiveLearningData, strategy, save_path=None):
+
+        document_ids = list(set(data.train_dataset['document_id']))
         ids_in_train = set(random.sample(document_ids, min(len(document_ids), self.config['start_document_cnt'])))
 
         print(f'Step 0: {len(ids_in_train)} / {len(document_ids)} indexes are in train')
 
-        train_step = pool.filter(lambda x: x['document_id'] in ids_in_train and x['labels'] is not None)
+        train_step = data.train_dataset.filter(lambda x: x['document_id'] in ids_in_train)
+        train_binary_step = data.train_bert.filter(lambda x: x['document_id'] in ids_in_train)
 
-        train_metrics = self.train(train_step, test_dataset)
-        eval_metrics = self.evaluate(val_dataset, val_answers)
-        metrics = {'train': [train_metrics], 'val': [eval_metrics]}
+        train_metrics = self.train(train_step, data.test_dataset)
+        train_binary_metrics = self.train(train_binary_step, data.test_bert)
+        eval_metrics = self.evaluate(data.val_dataset, data.val_answers)
+        metrics = {'train': [train_metrics], 'train_binary': [train_binary_metrics], 'val': [eval_metrics]}
+
         del train_step
+        del train_binary_step
         gc.collect()
 
         for step in range(self.config['active_learning_steps_cnt']):
             self._reset_models()
+
             print(f'Step {step + 1}: choosing ids for train')
-            pool_to_choose = pool.filter(lambda x: x['document_id'] not in ids_in_train)
-            ids_to_add = self._choose_ids(pool_to_choose)
+            ids_to_add = self._choose_ids(data, ids_in_train, strategy)
             ids_in_train = ids_in_train.union(ids_to_add)
 
             print(f'Step {step + 1}: {len(ids_in_train)} / {len(document_ids)} indexes are in train')
 
-            train_step = pool.filter(lambda x: x['document_id'] in ids_in_train and x['labels'] is not None)
+            train_step = data.train_dataset.filter(lambda x: x['document_id'] in ids_in_train)
+            train_binary_step = data.train_bert.filter(lambda x: x['document_id'] in ids_in_train)
+            train_binary_step = prepare_train_binary(train_binary_step)
 
-            train_metrics = self.train(train_step, test_dataset)
-            eval_metrics = self.evaluate(val_dataset, val_answers)
+            train_metrics = self.train(train_step, data.test_dataset)
+            train_binary_metrics = self.train(train_binary_step, data.test_bert)
+
+            eval_metrics = self.evaluate(data.val_dataset, data.val_answers)
             metrics['train'].append(train_metrics)
+            metrics['train_binary'].append(train_binary_metrics)
             metrics['val'].append(eval_metrics)
 
             del train_step
-            del pool_to_choose
+            del train_binary_step
             gc.collect()
 
             if save_path is not None:
