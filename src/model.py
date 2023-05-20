@@ -61,9 +61,13 @@ class ActiveQA:
             weight_decay=self.config['weight_decay_binary'],
             evaluation_strategy="epoch",
             save_strategy="epoch",
+            logging_strategy="epoch",
+            metric_for_best_model='roc_auc_score',
             load_best_model_at_end=True,
+            logging_dir='logs',
             report_to="none",
             push_to_hub=False,
+            save_total_limit=3,
         )
 
         self._reset_models()
@@ -161,7 +165,6 @@ class ActiveQA:
                 probs_list += probs
                 labels_list += labels
         labels = [l.cpu().numpy() for l in labels_list]
-        last_d = -1
         return {'prob': probs_list, 'labels': labels}
 
     def predict_probs_binary(self, dataset):
