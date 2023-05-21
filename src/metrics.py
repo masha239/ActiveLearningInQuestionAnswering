@@ -4,6 +4,8 @@ import evaluate
 import numpy as np
 import torch
 from transformers import T5Tokenizer
+from datasets import disable_caching
+disable_caching()
 
 
 def seed_everything(seed_val=0):
@@ -25,6 +27,7 @@ tokenizer = T5Tokenizer.from_pretrained('t5-small', padding=True)
 
 def compute_metrics_binary(eval_pred):
     predictions, labels = eval_pred
+    predictions = torch.softmax(torch.tensor(predictions), -1).numpy()
     result = dict()
     result['accuracy'] = accuracy.compute(predictions=np.argmax(predictions, axis=1), references=labels)['accuracy']
     result['roc_auc'] = roc_auc_score.compute(references=labels, prediction_scores=predictions[:, 1])['roc_auc']
