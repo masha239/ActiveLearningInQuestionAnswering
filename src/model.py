@@ -13,13 +13,12 @@ from transformers import T5ForConditionalGeneration, T5Tokenizer
 from src.metrics import compute_metrics, compute_metrics_binary
 from typing import NamedTuple
 from datasets import Dataset
-from random import random
 
 
 def prepare_train_binary(dataset):
     k = np.mean(dataset['labels'])
     coef = k / (1 - k)
-    return dataset.filter(lambda x: x['labels'] == 1 or random() < coef)
+    return dataset.filter(lambda x: x['labels'] == 1 or random.random() < coef)
 
 
 def choose_best_pairs(probs, ids, part_ids):
@@ -95,7 +94,7 @@ class ActiveQA:
             learning_rate=self.config['learning_rate_binary'],
             per_device_train_batch_size=self.config['per_device_train_batch_size_binary'],
             per_device_eval_batch_size=self.config['per_device_eval_batch_size_binary'],
-            num_train_epochs=self.config['num_train_epochs_binary'],
+            num_train_epochs=self.config['num_train_epochs'],
             weight_decay=self.config['weight_decay_binary'],
             evaluation_strategy="epoch",
             save_strategy="epoch",
@@ -117,7 +116,7 @@ class ActiveQA:
         self.model = T5ForConditionalGeneration.from_pretrained(
             self.config['checkpoint_answer']
         ).to(self.config['device'])
-        self.tokenizer = T5Tokenizer.from_pretrained(self.config['checkpoint_answer'], padding=True)
+        self.tokenizer = T5Tokenizer.from_pretrained(self.config['checkpoint_answer'])
         self.data_collator = DataCollatorForSeq2Seq(
             tokenizer=self.tokenizer,
             model=self.model,
@@ -195,15 +194,19 @@ class ActiveQA:
         return {'prob': probs_list, 'labels': labels}
 
     def _predict_probs_binary(self, dataset):
-        return self.trainer_binary.predict(dataset)[:, 1]
+        predictions = self.trainer_binary.predict(dataset).predictions
+        predictions = torch.softmax(torch.tensor(predictions), -1).numpy()
+        return predictions[:, 1]
 
-    def evaluate(self, test_dataset, test_text):
-        res_dict = self._predict_probs(test_dataset)
-        res_dict['document_id'] = test_dataset['document_id']
+    def evaluate(self, val_pool, val_answers, val_bert):
+        bert_probs = self._predict_probs_binary(val_bert)
+        pairs = choose_best_pairs(bert_probs, val_bert['document_id'], val_bert['part_id'])
+        pool = val_pool.filter(lambda x: (x['document_id'], x['part_id']) in pairs)
+        res_dict = self._predict_probs(pool.remove_columns('labels'))
+        res_dict['document_id'] = pool['document_id']
         df = pd.DataFrame(res_dict)
-        df = df.sort_values('prob', ascending=False).groupby('document_id', as_index=False).first()
         df = df.sort_values('document_id')
-        metrics = self.trainer.compute_metrics((df['labels'], test_text['labels']), multilabel=True, calc_all=True)
+        metrics = self.trainer.compute_metrics((df['labels'], val_answers['labels']), multilabel=True, calc_all=True)
         return metrics
 
     def predict(self, input_text):
@@ -247,7 +250,7 @@ class ActiveQA:
             bert_step = data.train_bert.filter(lambda x: x['document_id'] in pool_ids).remove_columns('labels')
             bert_probs = self._predict_probs_binary(bert_step)
             pairs = choose_best_pairs(bert_probs, bert_step['document_id'], bert_step['part_id'])
-            pool_step = data.train_pool.filter(lambda x: (x['document_id'], x['part_idx']) in pairs).remove_columns(
+            pool_step = data.train_pool.filter(lambda x: (x['document_id'], x['part_id']) in pairs).remove_columns(
                 'labels')
             probs = self._predict_probs(pool_step)['prob']
             best_ids = self._best_ids_from_probs(pool_step['document_id'], probs, best_ids_cnt)
@@ -267,8 +270,9 @@ class ActiveQA:
         train_binary_step = data.train_bert.filter(lambda x: x['document_id'] in ids_in_train)
 
         train_metrics = self.train(train_step, data.test_dataset)
-        train_binary_metrics = self.train(train_binary_step, data.test_bert)
-        eval_metrics = self.evaluate(data.val_dataset, data.val_answers)
+        train_binary_metrics = self.train_binary(train_binary_step, data.test_bert)
+        eval_metrics = self.evaluate(data.val_pool, data.val_answers, data.val_bert)
+        print(eval_metrics)
         metrics = {'train': [train_metrics], 'train_binary': [train_binary_metrics], 'val': [eval_metrics]}
 
         del train_step
@@ -289,9 +293,10 @@ class ActiveQA:
             train_binary_step = prepare_train_binary(train_binary_step)
 
             train_metrics = self.train(train_step, data.test_dataset)
-            train_binary_metrics = self.train(train_binary_step, data.test_bert)
+            train_binary_metrics = self.train_binary(train_binary_step, data.test_bert)
 
-            eval_metrics = self.evaluate(data.val_dataset, data.val_answers)
+            eval_metrics = self.evaluate(data.val_pool, data.val_answers, data.val_bert)
+            print(eval_metrics)
             metrics['train'].append(train_metrics)
             metrics['train_binary'].append(train_binary_metrics)
             metrics['val'].append(eval_metrics)
