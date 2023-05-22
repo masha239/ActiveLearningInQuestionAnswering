@@ -291,7 +291,7 @@ class ActiveQA:
             raise ValueError(f"Unsupported unsertainty strategy {self.config['unsertainty_strategy']}")
 
     def _choose_ids(self, data, ids_in_train, strategy):
-        document_ids = set(data.train_dataset['document_id'])
+        document_ids = set(data.train_dataset.doc_ids)
         document_ids = list(document_ids - ids_in_train)
 
         random_ids_cnt = int(self.config['step_document_cnt'] * self.config['random_sample_fraction'])
@@ -325,7 +325,7 @@ class ActiveQA:
 
         return random_ids.union(set(best_ids))
 
-    def train_loop(self, data, metrics, ids_in_train):
+    def _train_loop(self, data, metrics, ids_in_train):
         train_step = data.train_dataset.filter_ids(ids_in_train)
         train_binary_step = data.train_bert.filter_ids(ids_in_train)
 
@@ -340,11 +340,11 @@ class ActiveQA:
     def emulate_active_learning(self, data: ActiveLearningData, strategy, save_path=None):
         metrics = {'train': [], 'train_binary': [], 'val': []}
 
-        document_ids = list(set(data.train_dataset['document_id']))
+        document_ids = list(set(data.train_dataset.doc_ids))
         ids_in_train = set(random.sample(document_ids, min(len(document_ids), self.config['start_document_cnt'])))
 
         print(f'Step 0: {len(ids_in_train)} / {len(document_ids)} indexes are in train')
-        self.train_loop(data, metrics, ids_in_train)
+        self._train_loop(data, metrics, ids_in_train)
 
         for step in range(self.config['active_learning_steps_cnt']):
             self._reset_models()
@@ -354,7 +354,7 @@ class ActiveQA:
             ids_in_train = ids_in_train.union(ids_to_add)
 
             print(f'Step {step + 1}: {len(ids_in_train)} / {len(document_ids)} indexes are in train')
-            self.train_loop(data, metrics, ids_in_train)
+            self._train_loop(data, metrics, ids_in_train)
 
             if save_path is not None:
                 with open(save_path, 'wb') as f:
