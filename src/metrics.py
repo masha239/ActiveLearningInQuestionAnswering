@@ -21,6 +21,8 @@ exact_match = evaluate.load("exact_match", keep_in_memory=True)
 accuracy = evaluate.load("accuracy", keep_in_memory=True)
 f1 = evaluate.load("f1", keep_in_memory=True)
 roc_auc_score = evaluate.load("roc_auc", keep_in_memory=True)
+precision = evaluate.load("precision")
+recall = evaluate.load("recall")
 
 tokenizer = T5Tokenizer.from_pretrained('t5-small', padding=True)
 
@@ -29,10 +31,13 @@ def compute_metrics_binary(eval_pred):
     predictions, labels = eval_pred
     predictions = torch.softmax(torch.tensor(predictions), -1).numpy()
     result = dict()
+    print(np.argmax(predictions, axis=1))
+    print(labels)
     result['accuracy'] = accuracy.compute(predictions=np.argmax(predictions, axis=1), references=labels)['accuracy']
     result['roc_auc'] = roc_auc_score.compute(references=labels, prediction_scores=predictions[:, 1])['roc_auc']
-    result['f1_micro'] = f1.compute(predictions=predictions[:, 1], references=labels, average="micro")['f1']
-    result['f1_macro'] = f1.compute(predictions=predictions[:, 1], references=labels, average="macro")['f1']
+    result['f1'] = f1.compute(predictions=np.argmax(predictions, axis=1), references=labels)['f1']
+    result['precision'] = precision.compute(predictions=np.argmax(predictions, axis=1), references=labels)['precision']
+    result['recall'] = recall.compute(predictions=np.argmax(predictions, axis=1), references=labels)['recall']
     return {k: round(v, 4) for k, v in result.items()}
 
 
