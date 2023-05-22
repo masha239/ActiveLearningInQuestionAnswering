@@ -54,15 +54,16 @@ class ActiveLearningData(NamedTuple):
 
 
 class TrainBinaryDataset(torch.utils.data.Dataset):
-    def __init__(self, dataset):
-        self.coef = np.mean(dataset['labels'])
+    def __init__(self, dataset, coef=0.5):
+        self.dataset = dataset
+        self.coef = coef
         self.ids = list(set(dataset['document_id']))
         self.data = {idx: {'pos': [], 'neg': []} for idx in self.ids}
-        for row in dataset:
+        for idx, row in enumerate(dataset):
             if row['labels'] == 1:
-                self.data[row['document_id']]['pos'].append(row)
+                self.data[row['document_id']]['pos'].append(idx)
             else:
-                self.data[row['document_id']]['neg'].append(row)
+                self.data[row['document_id']]['neg'].append(idx)
 
     def __len__(self):
         return len(self.data)
@@ -70,9 +71,9 @@ class TrainBinaryDataset(torch.utils.data.Dataset):
     def __getitem__(self, idx):
         idx = self.ids[idx]
         if random.random() > self.coef and len(self.data[idx]['pos']) > 0:
-            return random.choice(self.data[idx]['pos'])
+            return self.dataset[random.choice(self.data[idx]['pos'])]
         else:
-            return random.choice(self.data[idx]['neg'])
+            return self.dataset[random.choice(self.data[idx]['neg'])]
 
 
 class CustomDataset(torch.utils.data.Dataset):
