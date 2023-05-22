@@ -70,7 +70,12 @@ class TrainBinaryDataset(torch.utils.data.Dataset):
 
     def __getitem__(self, idx):
         idx = self.ids[idx]
-        if random.random() > self.coef and len(self.data[idx]['pos']) > 0:
+        if len(self.data[idx]['pos']) == 0:
+            return self.dataset[random.choice(self.data[idx]['neg'])]
+        if len(self.data[idx]['neg']) == 0:
+            return self.dataset[random.choice(self.data[idx]['pos'])]
+
+        if random.random() > self.coef:
             return self.dataset[random.choice(self.data[idx]['pos'])]
         else:
             return self.dataset[random.choice(self.data[idx]['neg'])]
