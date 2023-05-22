@@ -53,32 +53,75 @@ class ActiveLearningData(NamedTuple):
     val_answers: Dataset
 
 
-class TrainBinaryDataset(torch.utils.data.Dataset):
-    def __init__(self, dataset, coef=0.5):
-        self.dataset = dataset
-        self.coef = coef
-        self.ids = list(set(dataset['document_id']))
-        self.data = {idx: {'pos': [], 'neg': []} for idx in self.ids}
-        for idx, row in enumerate(dataset):
-            if row['labels'] == 1:
-                self.data[row['document_id']]['pos'].append(idx)
-            else:
-                self.data[row['document_id']]['neg'].append(idx)
+class TrainDataset(torch.utils.data.Dataset):
+    def __init__(self, dataset=None, coef=0.5, binary=True):
+        if dataset is not None:
+            self.dataset = dataset
+            self.binary = binary
+            self.coef = coef
+            self.doc_ids = list(set(dataset['document_id']))
+            self.data = {doc_id: {'pos': [], 'neg': []} for doc_id in self.doc_ids}
+            for idx, row in enumerate(dataset):
+                if binary:
+                    condition = row['labels'] == 1
+                else:
+                    condition = len(row['labels']) > 0
+
+                if condition:
+                    self.data[row['document_id']]['pos'].append(idx)
+                else:
+                    self.data[row['document_id']]['neg'].append(idx)
+        else:
+            self.dataset = None
+            self.coef = coef
+            self.ids = None
+            self.data = None
 
     def __len__(self):
-        return len(self.data)
+        return len(self.doc_ids)
 
     def __getitem__(self, idx):
-        idx = self.ids[idx]
-        if len(self.data[idx]['pos']) == 0:
-            return self.dataset[random.choice(self.data[idx]['neg'])]
-        if len(self.data[idx]['neg']) == 0:
-            return self.dataset[random.choice(self.data[idx]['pos'])]
-
+        doc_id = self.doc_ids[idx]
+        if len(self.data[doc_id]['pos']) == 0:
+            return self.dataset[random.choice(self.data[doc_id]['neg'])]
+        if len(self.data[doc_id]['neg']) == 0:
+            return self.dataset[random.choice(self.data[doc_id]['pos'])]
         if random.random() > self.coef:
-            return self.dataset[random.choice(self.data[idx]['pos'])]
+            return self.dataset[random.choice(self.data[doc_id]['pos'])]
         else:
-            return self.dataset[random.choice(self.data[idx]['neg'])]
+            return self.dataset[random.choice(self.data[doc_id]['neg'])]
+
+    def filter_ids(self, doc_ids):
+        new_dataset = TrainDataset()
+        new_dataset.coef = self.coef
+        new_dataset.dataset = self.dataset
+        new_dataset.binary = self.binary
+        doc_ids = list(set(doc_ids))
+        doc_ids = [doc_id for doc_id in doc_ids if doc_id in self.doc_ids]
+        new_dataset.doc_ids = doc_ids
+        new_dataset.data = {doc_id: self.data[doc_id] for doc_id in doc_ids}
+
+        return new_dataset
+
+    def filter_pairs(self, pairs):
+        new_dataset = TrainDataset()
+        new_dataset.coef = self.coef
+        new_dataset.dataset = self.dataset
+        new_dataset.binary = self.binary
+        doc_ids = list(set([pair[0] for pair in pairs]))
+        doc_ids = [doc_id for doc_id in doc_ids if doc_id in self.doc_ids]
+        new_dataset.doc_ids = doc_ids
+        new_dataset.data = {doc_id: {'pos': [], 'neg': []} for doc_id in doc_ids}
+
+        for doc_id in doc_ids:
+            for idx in self.data[doc_id]['pos']:
+                if (self.dataset[idx]['document_id'], self.dataset[idx]['part_id']) in pairs:
+                    new_dataset.data[doc_id]['pos'].append(idx)
+            for idx in self.data[doc_id]['neg']:
+                if (self.dataset[idx]['document_id'], self.dataset[idx]['part_id']) in pairs:
+                    new_dataset.data[doc_id]['neg'].append(idx)
+
+        return new_dataset
 
 
 class CustomDataset(torch.utils.data.Dataset):
