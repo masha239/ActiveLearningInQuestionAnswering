@@ -31,8 +31,6 @@ def compute_metrics_binary(eval_pred):
     predictions, labels = eval_pred
     predictions = torch.softmax(torch.tensor(predictions), -1).numpy()
     result = dict()
-    print(np.argmax(predictions, axis=1))
-    print(labels)
     result['accuracy'] = accuracy.compute(predictions=np.argmax(predictions, axis=1), references=labels)['accuracy']
     result['roc_auc'] = roc_auc_score.compute(references=labels, prediction_scores=predictions[:, 1])['roc_auc']
     result['f1'] = f1.compute(predictions=np.argmax(predictions, axis=1), references=labels)['f1']
