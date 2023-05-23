@@ -184,6 +184,7 @@ class ActiveQA:
         self.data_collator = DataCollatorForSeq2Seq(
             tokenizer=self.tokenizer,
             model=self.model,
+            max_length=self.config['max_length'],
         )
 
         self.trainer = Seq2SeqTrainer(
