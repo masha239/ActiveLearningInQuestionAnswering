@@ -73,8 +73,8 @@ def create_config(device, answer_type, model_dir=None, config_update=None):
         'log_path': os.path.join(model_dir, 'logs.pkl'),
         'learning_rate_binary': 1e-5,
         'weight_decay_binary': 1e-2,
-        'per_device_train_batch_size_binary': 4,
-        'per_device_eval_batch_size_binary': 16,
+        'per_device_train_batch_size_binary': 8,
+        'per_device_eval_batch_size_binary': 8,
     }
 
     if config_update is not None:

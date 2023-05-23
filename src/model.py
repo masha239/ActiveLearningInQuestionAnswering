@@ -15,11 +15,9 @@ from typing import NamedTuple
 from datasets import Dataset
 
 
-
 def choose_best_pairs(probs, ids, part_ids):
     df = pd.DataFrame({'prob': probs, 'idx': ids, 'part_idx': part_ids})
     df = df.sort_values('prob', ascending=False).groupby('idx', as_index=False).first()
-    df = df.sort_values('idx')
     return [(document_id, part_idx) for (document_id, part_idx) in zip(df['idx'], df['part_idx'])]
 
 
@@ -264,15 +262,22 @@ class ActiveQA:
         predictions = torch.softmax(torch.tensor(predictions), -1).numpy()
         return predictions[:, 1]
 
-    def evaluate(self, val_pool, val_answers, val_bert):
-        bert_probs = self._predict_probs_binary(val_bert)
-        pairs = choose_best_pairs(bert_probs, val_bert['document_id'], val_bert['part_id'])
-        pool = val_pool.filter(lambda x: (x['document_id'], x['part_id']) in pairs)
-        res_dict = self._predict_probs(pool.remove_columns('labels'))
-        res_dict['document_id'] = pool['document_id']
-        df = pd.DataFrame(res_dict)
-        df = df.sort_values('document_id')
-        metrics = self.trainer.compute_metrics((df['labels'], val_answers['labels']), multilabel=True, calc_all=True)
+    def _filter_pool(self, pool, bert):
+        bert_probs = self._predict_probs_binary(bert)
+        pairs = choose_best_pairs(bert_probs, bert['document_id'], bert['part_id'])
+        pool = pool.filter(lambda sample: (sample['document_id'], sample['part_id']) in pairs)
+        return pool
+
+    def evaluate(self, val_pool, val_answers, val_bert, val):
+        pool = self._filter_pool(val_pool, val_bert)
+        predictions = self.trainer.predict(pool.remove_columns('labels')).predictions
+        assert pool['document_id'] == val_answers['document_id']
+
+        full = self.trainer.compute_metrics((predictions, val_answers['labels']), multilabel=True, calc_all=True)
+        answer = self.trainer.evaluate(val)
+        binary = self.trainer_binary.evaluate(val_bert)
+
+        metrics = {'full_task': full, 'part_answer': answer, 'part_binary': binary}
         return metrics
 
     def predict(self, input_text):
@@ -314,10 +319,7 @@ class ActiveQA:
             best_ids = self._best_ids_from_probs(pool_step['document_id'], probs, best_ids_cnt)
         elif strategy == 'binary+answers':
             bert_step = data.train_bert.dataset.filter(lambda x: x['document_id'] in pool_ids).remove_columns('labels')
-            bert_probs = self._predict_probs_binary(bert_step)
-            pairs = choose_best_pairs(bert_probs, bert_step['document_id'], bert_step['part_id'])
-            pool_step = data.train_pool.dataset.filter(lambda x: (x['document_id'], x['part_id']) in pairs).remove_columns(
-                'labels')
+            pool_step = self._filter_pool(bert_step, data.train_pool.dataset)
             probs = self._predict_probs(pool_step)['prob']
             best_ids = self._best_ids_from_probs(pool_step['document_id'], probs, best_ids_cnt)
         else:
