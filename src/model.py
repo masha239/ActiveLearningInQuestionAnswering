@@ -184,7 +184,6 @@ class ActiveQA:
         self.data_collator = DataCollatorForSeq2Seq(
             tokenizer=self.tokenizer,
             model=self.model,
-            max_length=self.config['max_length']
         )
 
         self.trainer = Seq2SeqTrainer(
@@ -201,7 +200,7 @@ class ActiveQA:
             num_labels=2
         ).to(self.config['device'])
         self.tokenizer_binary = AutoTokenizer.from_pretrained(self.config['checkpoint_binary'])
-        self.data_collator_binary = DataCollatorWithPadding(tokenizer=self.tokenizer_binary)
+        self.data_collator_binary = DataCollatorWithPadding(tokenizer=self.tokenizer_binary, padding='max_length')
 
         self.trainer_binary = Trainer(
             model=self.model_binary,
