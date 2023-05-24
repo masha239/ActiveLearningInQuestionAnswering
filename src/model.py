@@ -331,14 +331,14 @@ class ActiveQA:
         return random_ids.union(set(best_ids))
 
     def _train_loop(self, data, metrics, ids_in_train, step, ids_total_cnt, save_path=None):
-        print(f'Step {step + 1}: {len(ids_in_train)} / {ids_total_cnt} indexes are in train')
+        print(f'Step {step}: {len(ids_in_train)} / {ids_total_cnt} indexes are in train')
 
         train_step = data.train_dataset.filter_ids(ids_in_train)
         train_binary_step = data.train_bert.filter_ids(ids_in_train)
 
         train_metrics = self.train(train_step, data.test_dataset)
         train_binary_metrics = self.train_binary(train_binary_step, data.test_bert)
-        val_metrics = self.evaluate(data.val_pool, data.val_answers, data.val_bert)
+        val_metrics = self.evaluate(data.val_pool, data.val_answers, data.val_bert, data.val)
         metrics['train'].append(train_metrics)
         metrics['train_binary'].append(train_binary_metrics)
         metrics['val'].append(val_metrics)
