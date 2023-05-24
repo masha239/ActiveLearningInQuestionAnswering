@@ -1,9 +1,8 @@
-import gc
+import os
 import pickle
 import random
 
 import pandas as pd
-import numpy as np
 import torch
 import torch.utils.data as data_utils
 from transformers import EarlyStoppingCallback, GenerationConfig, DataCollatorWithPadding, Trainer, AutoTokenizer, \
@@ -331,7 +330,9 @@ class ActiveQA:
 
         return random_ids.union(set(best_ids))
 
-    def _train_loop(self, data, metrics, ids_in_train):
+    def _train_loop(self, data, metrics, ids_in_train, step, ids_total_cnt, save_path=None):
+        print(f'Step {step + 1}: {len(ids_in_train)} / {ids_total_cnt} indexes are in train')
+
         train_step = data.train_dataset.filter_ids(ids_in_train)
         train_binary_step = data.train_bert.filter_ids(ids_in_train)
 
@@ -343,27 +344,25 @@ class ActiveQA:
         metrics['val'].append(val_metrics)
         print(val_metrics)
 
+        if save_path is not None:
+            with open(os.path.join(save_path, f'metrics_{step}.pkl'), 'wb') as f:
+                pickle.dump({f'step {step} metrics': metrics}, f)
+            with open(os.path.join(save_path, f'ids_{step}.pkl'), 'wb') as f:
+                pickle.dump({f'step {step} ids': ids_in_train}, f)
+
     def emulate_active_learning(self, data: ActiveLearningData, strategy, save_path=None):
         metrics = {'train': [], 'train_binary': [], 'val': []}
 
         document_ids = list(set(data.train_dataset.doc_ids))
         ids_in_train = set(random.sample(document_ids, min(len(document_ids), self.config['start_document_cnt'])))
+        self._train_loop(data, metrics, ids_in_train, 0, len(document_ids), save_path)
 
-        print(f'Step 0: {len(ids_in_train)} / {len(document_ids)} indexes are in train')
-        self._train_loop(data, metrics, ids_in_train)
-
-        for step in range(self.config['active_learning_steps_cnt']):
+        for step in range(1, self.config['active_learning_steps_cnt'] + 1, 1):
             self._reset_models()
 
             print(f'Step {step + 1}: choosing ids for train')
             ids_to_add = self._choose_ids(data, ids_in_train, strategy)
             ids_in_train = ids_in_train.union(ids_to_add)
-
-            print(f'Step {step + 1}: {len(ids_in_train)} / {len(document_ids)} indexes are in train')
-            self._train_loop(data, metrics, ids_in_train)
-
-            if save_path is not None:
-                with open(save_path, 'wb') as f:
-                    pickle.dump({f'step {step + 1} metrics': metrics}, f)
+            self._train_loop(data, metrics, ids_in_train, step, len(document_ids), save_path)
 
         return metrics
