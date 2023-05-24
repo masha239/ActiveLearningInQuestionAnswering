@@ -64,7 +64,7 @@ def create_config(device, answer_type, model_dir=None, config_update=None):
         'num_train_epochs': 20,
         'device': device,
         'unsertainty_strategy': 'min_normalized_prob',
-        'start_document_cnt': 1000,
+        'start_document_cnt': 500,
         'active_learning_steps_cnt': 30,
         'pool_document_cnt': 5000,
         'step_document_cnt': 500,
