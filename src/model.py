@@ -350,17 +350,18 @@ class ActiveQA:
             with open(os.path.join(save_path, f'ids_{step}.pkl'), 'wb') as f:
                 pickle.dump({f'step {step} ids': ids_in_train}, f)
 
-    def emulate_active_learning(self, data: ActiveLearningData, strategy, save_path=None):
+    def emulate_active_learning(self, data: ActiveLearningData, strategy, save_path=None, ids_in_train=None):
         metrics = {'train': [], 'train_binary': [], 'val': []}
 
         document_ids = list(set(data.train_dataset.doc_ids))
-        ids_in_train = set(random.sample(document_ids, min(len(document_ids), self.config['start_document_cnt'])))
-        self._train_loop(data, metrics, ids_in_train, 0, len(document_ids), save_path)
+        if ids_in_train is None:
+            ids_in_train = set(random.sample(document_ids, min(len(document_ids), self.config['start_document_cnt'])))
+            self._train_loop(data, metrics, ids_in_train, 0, len(document_ids), save_path)
 
         for step in range(1, self.config['active_learning_steps_cnt'] + 1, 1):
             self._reset_models()
 
-            print(f'Step {step + 1}: choosing ids for train')
+            print(f'Step {step}: choosing ids for train')
             ids_to_add = self._choose_ids(data, ids_in_train, strategy)
             ids_in_train = ids_in_train.union(ids_to_add)
             self._train_loop(data, metrics, ids_in_train, step, len(document_ids), save_path)
