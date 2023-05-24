@@ -106,7 +106,7 @@ class TrainDataset(torch.utils.data.Dataset):
 
 
 class ActiveLearningData(NamedTuple):
-    train_pool: TrainDataset
+    train_pool: Dataset
     train_dataset: TrainDataset
     train_bert: TrainDataset
     test_dataset: Dataset
