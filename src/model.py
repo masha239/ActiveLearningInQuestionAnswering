@@ -302,7 +302,11 @@ class ActiveQA:
         random_ids_cnt = int(self.config['step_document_cnt'] * self.config['random_sample_fraction'])
         best_ids_cnt = self.config['step_document_cnt'] - random_ids_cnt
 
-        random_ids = set(random.sample(document_ids, min(len(document_ids), random_ids_cnt)))
+        if random_ids_cnt > 0:
+            random_ids = set(random.sample(document_ids, min(len(document_ids), random_ids_cnt)))
+        else:
+            random_ids = set()
+
         if best_ids_cnt == 0:
             return random_ids
 
