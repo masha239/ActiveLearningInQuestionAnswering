@@ -289,7 +289,7 @@ class ActiveQA:
     def _best_ids_from_probs(self, doc_ids, probs, best_ids_cnt):
         if self.config['unsertainty_strategy'] == 'min_normalized_prob':
             df = pd.DataFrame({'doc_id': doc_ids, 'prob': probs})
-            df = df.sort_values('prob', ascending=True)
+            df = df.sort_values('prob', ascending=False)
             df = df.groupby('doc_id', as_index=False).first().sort_values('prob', ascending=True)
             return df['doc_id'].values.tolist()[: best_ids_cnt]
         else:
