@@ -338,7 +338,7 @@ class ActiveQA:
 
         train_metrics = self.train(train_step, data.test_dataset)
         train_binary_metrics = self.train_binary(train_binary_step, data.test_bert)
-        val_metrics = self.evaluate(data.val_pool, data.val_answers, data.val_bert, data.val)
+        val_metrics = self.evaluate(data.val_pool, data.val_answers, data.val_bert, data.val_dataset)
         metrics['train'].append(train_metrics)
         metrics['train_binary'].append(train_binary_metrics)
         metrics['val'].append(val_metrics)
