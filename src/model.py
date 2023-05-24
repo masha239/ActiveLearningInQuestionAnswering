@@ -331,6 +331,7 @@ class ActiveQA:
         return random_ids.union(set(best_ids))
 
     def _train_loop(self, data, metrics, ids_in_train, step, ids_total_cnt, save_path=None):
+        self._reset_models()
         print(f'Step {step}: {len(ids_in_train)} / {ids_total_cnt} indexes are in train')
 
         train_step = data.train_dataset.filter_ids(ids_in_train)
@@ -359,11 +360,10 @@ class ActiveQA:
             self._train_loop(data, metrics, ids_in_train, 0, len(document_ids), save_path)
 
         for step in range(1, self.config['active_learning_steps_cnt'] + 1, 1):
-            self._reset_models()
-
             print(f'Step {step}: choosing ids for train')
             ids_to_add = self._choose_ids(data, ids_in_train, strategy)
             ids_in_train = ids_in_train.union(ids_to_add)
+
             self._train_loop(data, metrics, ids_in_train, step, len(document_ids), save_path)
 
         return metrics
