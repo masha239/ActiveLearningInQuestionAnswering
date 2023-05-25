@@ -150,7 +150,7 @@ class ActiveQA:
             metric_for_best_model='rouge1',
             load_best_model_at_end=True,
             save_total_limit=3,
-            eval_delay=5,
+            eval_delay=10,
         )
 
         self.training_args_binary = TrainingArguments(
@@ -169,7 +169,7 @@ class ActiveQA:
             report_to="none",
             push_to_hub=False,
             save_total_limit=3,
-            eval_delay=5,
+            eval_delay=10,
         )
 
         self._reset_models()
