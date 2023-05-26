@@ -319,12 +319,12 @@ class ActiveQA:
             bert_probs = self._predict_probs_binary(bert_step)
             best_ids = self._best_ids_from_probs(bert_step['document_id'], bert_probs, best_ids_cnt)
         elif strategy == 'answers':
-            pool_step = data.train_pool.dataset.filter(lambda x: x['document_id'] in pool_ids).remove_columns('labels')
+            pool_step = data.train_pool.filter(lambda x: x['document_id'] in pool_ids).remove_columns('labels')
             probs = self._predict_probs(pool_step)['prob']
             best_ids = self._best_ids_from_probs(pool_step['document_id'], probs, best_ids_cnt)
         elif strategy == 'binary+answers':
             bert_step = data.train_bert.dataset.filter(lambda x: x['document_id'] in pool_ids).remove_columns('labels')
-            pool_step = self._filter_pool(bert_step, data.train_pool.dataset)
+            pool_step = self._filter_pool(bert_step, data.train_pool)
             probs = self._predict_probs(pool_step)['prob']
             best_ids = self._best_ids_from_probs(pool_step['document_id'], probs, best_ids_cnt)
         else:
