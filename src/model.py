@@ -350,14 +350,26 @@ class ActiveQA:
         if save_path is not None:
             with open(os.path.join(save_path, f'metrics_{step}.pkl'), 'wb') as f:
                 pickle.dump({f'step {step} metrics': metrics}, f)
-            with open(os.path.join(save_path, f'ids_{step}.pkl'), 'wb') as f:
-                pickle.dump({f'step {step} ids': ids_in_train}, f)
+            with open(os.path.join(save_path, f'ids.pkl'), 'wb') as f:
+                pickle.dump({f'ids': ids_in_train}, f)
+            with open(os.path.join(save_path, f'step.pkl'), 'wb') as f:
+                pickle.dump({f'step': step}, f)
+            torch.save(self.model.state_dict(), os.path.join(save_path, 'model.pt'))
+            torch.save(self.model_binary.state_dict(), os.path.join(save_path, 'model_binary.pt'))
 
-    def emulate_active_learning(self, data: ActiveLearningData, strategy, save_path=None, ids_in_train=None, step=0):
+    def emulate_active_learning(self, data: ActiveLearningData, strategy, save_path=None, retrain=True):
+        document_ids = list(set(data.train_dataset.doc_ids))
         metrics = {'train': [], 'train_binary': [], 'val': []}
 
-        document_ids = list(set(data.train_dataset.doc_ids))
-        if ids_in_train is None:
+        if save_path is not None and 'step.pkl' in os.listdir(save_path):
+            with open(os.path.join(save_path, f'step.pkl'), 'rb') as f:
+                step = pickle.load(f)
+            with open(os.path.join(save_path, f'ids.pkl'), 'rb') as f:
+                ids_in_train = pickle.load(f)['ids']
+            self.model.load_state_dict(torch.load(os.path.join(save_path, 'model.pt')))
+            self.model_binary.load_state_dict(torch.load(os.path.join(save_path, 'model_binary.pt')))
+        else:
+            step = 0
             ids_in_train = set(random.sample(document_ids, min(len(document_ids), self.config['start_document_cnt'])))
             self._train_loop(data, metrics, ids_in_train, step, len(document_ids), save_path)
 
@@ -367,6 +379,9 @@ class ActiveQA:
             ids_to_add = self._choose_ids(data, ids_in_train, strategy)
             ids_in_train = ids_in_train.union(ids_to_add)
 
-            self._train_loop(data, metrics, ids_in_train, step, len(document_ids), save_path)
+            if retrain:
+                self._train_loop(data, metrics, ids_in_train, step, len(document_ids), save_path)
+            else:
+                self._train_loop(data, metrics, ids_to_add, step, len(document_ids), save_path)
 
         return metrics
