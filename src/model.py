@@ -360,7 +360,7 @@ class ActiveQA:
 
         if save_path is not None and 'step.pkl' in os.listdir(save_path):
             with open(os.path.join(save_path, f'step.pkl'), 'rb') as f:
-                step = pickle.load(f)
+                step = pickle.load(f)['step']
             with open(os.path.join(save_path, f'ids.pkl'), 'rb') as f:
                 ids_in_train = pickle.load(f)['ids']
             self.model.load_state_dict(torch.load(os.path.join(save_path, 'model.pt')))
