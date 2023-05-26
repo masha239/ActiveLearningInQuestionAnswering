@@ -332,7 +332,7 @@ class ActiveQA:
 
         return random_ids.union(set(best_ids))
 
-    def _train_loop(self, data, metrics, ids_in_train, step, ids_total_cnt, save_path=None):
+    def _train_loop(self, data, ids_in_train, step, ids_total_cnt, save_path=None):
         self._reset_models()
         print(f'Step {step}: {len(ids_in_train)} / {ids_total_cnt} indexes are in train')
 
@@ -342,9 +342,7 @@ class ActiveQA:
         train_metrics = self.train(train_step, data.test_dataset)
         train_binary_metrics = self.train_binary(train_binary_step, data.test_bert)
         val_metrics = self.evaluate(data.val_pool, data.val_answers, data.val_bert, data.val_dataset)
-        metrics['train'].append(train_metrics)
-        metrics['train_binary'].append(train_binary_metrics)
-        metrics['val'].append(val_metrics)
+        metrics = {'train': train_metrics, 'train_binary': train_binary_metrics, 'val': val_metrics}
         print(val_metrics)
 
         if save_path is not None:
@@ -359,7 +357,6 @@ class ActiveQA:
 
     def emulate_active_learning(self, data: ActiveLearningData, strategy, save_path=None, retrain=True):
         document_ids = list(set(data.train_dataset.doc_ids))
-        metrics = {'train': [], 'train_binary': [], 'val': []}
 
         if save_path is not None and 'step.pkl' in os.listdir(save_path):
             with open(os.path.join(save_path, f'step.pkl'), 'rb') as f:
@@ -371,7 +368,7 @@ class ActiveQA:
         else:
             step = 0
             ids_in_train = set(random.sample(document_ids, min(len(document_ids), self.config['start_document_cnt'])))
-            self._train_loop(data, metrics, ids_in_train, step, len(document_ids), save_path)
+            self._train_loop(data, ids_in_train, step, len(document_ids), save_path)
 
         while step < self.config['active_learning_steps_cnt']:
             step += 1
@@ -380,8 +377,6 @@ class ActiveQA:
             ids_in_train = ids_in_train.union(ids_to_add)
 
             if retrain:
-                self._train_loop(data, metrics, ids_in_train, step, len(document_ids), save_path)
+                self._train_loop(data, ids_in_train, step, len(document_ids), save_path)
             else:
-                self._train_loop(data, metrics, ids_to_add, step, len(document_ids), save_path)
-
-        return metrics
+                self._train_loop(data, ids_to_add, step, len(document_ids), save_path)
