@@ -367,6 +367,7 @@ class ActiveQA:
         if not retrain:
             self.training_args.eval_delay = 5
             self.training_args_binary.eval_delay = 5
+            self._reset_models()
 
         document_ids = list(set(data.train_dataset.doc_ids))
 
