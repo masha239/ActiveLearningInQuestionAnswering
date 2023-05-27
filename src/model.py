@@ -296,7 +296,7 @@ class ActiveQA:
         else:
             raise ValueError(f"Unsupported unsertainty strategy {self.config['unsertainty_strategy']}")
 
-    def _choose_ids(self, data, ids_in_train, strategy):
+    def _choose_ids(self, data, ids_in_train, strategy, save_path=None, step=None):
         document_ids = set(data.train_dataset.doc_ids)
         document_ids = list(document_ids - ids_in_train)
 
@@ -327,6 +327,13 @@ class ActiveQA:
             pool_step = self._filter_pool(data.train_pool, bert_step)
             probs = self._predict_probs(pool_step)['prob']
             best_ids = self._best_ids_from_probs(pool_step['document_id'], probs, best_ids_cnt)
+            if save_path is not None:
+                with open(os.path.join(save_path, f'filtered_ids_{step}.pkl'), 'wb') as f:
+                    pickle.dump({f'filtered_ids': pool_step['document_id']}, f)
+                with open(os.path.join(save_path, f'probs_{step}.pkl'), 'wb') as f:
+                    pickle.dump({f'probs': probs}, f)
+                with open(os.path.join(save_path, f'best_ids_{step}.pkl'), 'wb') as f:
+                    pickle.dump({f'best_ids': best_ids}, f)
         else:
             raise ValueError(f'Unsupported strategy {strategy}')
 
@@ -373,7 +380,7 @@ class ActiveQA:
         while step < self.config['active_learning_steps_cnt']:
             step += 1
             print(f'Step {step}: choosing ids for train')
-            ids_to_add = self._choose_ids(data, ids_in_train, strategy)
+            ids_to_add = self._choose_ids(data, ids_in_train, strategy, save_path, step)
             ids_in_train = ids_in_train.union(ids_to_add)
 
             if retrain:
