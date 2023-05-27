@@ -339,8 +339,9 @@ class ActiveQA:
 
         return random_ids.union(set(best_ids))
 
-    def _train_loop(self, data, ids_in_train, step, ids_total_cnt, save_path=None):
-        self._reset_models()
+    def _train_loop(self, data, ids_in_train, step, ids_total_cnt, save_path=None, retrain=True):
+        if retrain:
+            self._reset_models()
         print(f'Step {step}: {len(ids_in_train)} / {ids_total_cnt} indexes are in train')
 
         train_step = data.train_dataset.filter_ids(ids_in_train)
@@ -384,6 +385,6 @@ class ActiveQA:
             ids_in_train = ids_in_train.union(ids_to_add)
 
             if retrain:
-                self._train_loop(data, ids_in_train, step, len(document_ids), save_path)
+                self._train_loop(data, ids_in_train, step, len(document_ids), save_path, retrain)
             else:
-                self._train_loop(data, ids_to_add, step, len(document_ids), save_path)
+                self._train_loop(data, ids_to_add, step, len(document_ids), save_path, retrain)
