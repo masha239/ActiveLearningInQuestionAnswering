@@ -354,8 +354,6 @@ class ActiveQA:
         if save_path is not None:
             with open(os.path.join(save_path, f'metrics_{step}.pkl'), 'wb') as f:
                 pickle.dump({f'step {step} metrics': metrics}, f)
-            with open(os.path.join(save_path, f'ids.pkl'), 'wb') as f:
-                pickle.dump({f'ids': ids_in_train}, f)
             with open(os.path.join(save_path, f'step.pkl'), 'wb') as f:
                 pickle.dump({f'step': step}, f)
             torch.save(self.model.state_dict(), os.path.join(save_path, 'model.pt'))
@@ -376,6 +374,9 @@ class ActiveQA:
             ids_in_train = set(random.sample(document_ids, min(len(document_ids), self.config['start_document_cnt'])))
             print(f'Step {step}: {len(ids_in_train)} / {len(document_ids)} indexes are in train')
             self._train_loop(data, ids_in_train, step, save_path)
+            if save_path is not None:
+                with open(os.path.join(save_path, f'ids.pkl'), 'wb') as f:
+                    pickle.dump({f'ids': ids_in_train}, f)
 
         while step < self.config['active_learning_steps_cnt']:
             step += 1
@@ -388,3 +389,6 @@ class ActiveQA:
                 self._train_loop(data, ids_in_train, step, save_path, retrain)
             else:
                 self._train_loop(data, ids_to_add, step, save_path, retrain)
+            if save_path is not None:
+                with open(os.path.join(save_path, f'ids.pkl'), 'wb') as f:
+                    pickle.dump({f'ids': ids_in_train}, f)
