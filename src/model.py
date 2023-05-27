@@ -338,10 +338,9 @@ class ActiveQA:
 
         return random_ids.union(set(best_ids))
 
-    def _train_loop(self, data, ids_in_train, step, ids_total_cnt, save_path=None, retrain=True):
+    def _train_loop(self, data, ids_in_train, step, save_path=None, retrain=True):
         if retrain:
             self._reset_models()
-        print(f'Step {step}: {len(ids_in_train)} / {ids_total_cnt} indexes are in train')
 
         train_step = data.train_dataset.filter_ids(ids_in_train)
         train_binary_step = data.train_bert.filter_ids(ids_in_train)
@@ -375,7 +374,8 @@ class ActiveQA:
         else:
             step = 0
             ids_in_train = set(random.sample(document_ids, min(len(document_ids), self.config['start_document_cnt'])))
-            self._train_loop(data, ids_in_train, step, len(document_ids), save_path)
+            print(f'Step {step}: {len(ids_in_train)} / {len(document_ids)} indexes are in train')
+            self._train_loop(data, ids_in_train, step, save_path)
 
         while step < self.config['active_learning_steps_cnt']:
             step += 1
@@ -383,7 +383,8 @@ class ActiveQA:
             ids_to_add = self._choose_ids(data, ids_in_train, strategy, save_path, step)
             ids_in_train = ids_in_train.union(ids_to_add)
 
+            print(f'Step {step}: {len(ids_in_train)} / {len(document_ids)} indexes are in train')
             if retrain:
-                self._train_loop(data, ids_in_train, step, len(document_ids), save_path, retrain)
+                self._train_loop(data, ids_in_train, step, save_path, retrain)
             else:
-                self._train_loop(data, ids_to_add, step, len(document_ids), save_path, retrain)
+                self._train_loop(data, ids_to_add, step, save_path, retrain)
