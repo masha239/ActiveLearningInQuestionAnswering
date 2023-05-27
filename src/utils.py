@@ -75,6 +75,7 @@ def create_config(device, answer_type, model_dir=None, config_update=None):
         'weight_decay_binary': 1e-2,
         'per_device_train_batch_size_binary': 8,
         'per_device_eval_batch_size_binary': 8,
+        'eval_delay': 10,
     }
 
     if config_update is not None:

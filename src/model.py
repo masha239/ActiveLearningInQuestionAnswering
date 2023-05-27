@@ -150,7 +150,7 @@ class ActiveQA:
             metric_for_best_model='rouge1',
             load_best_model_at_end=True,
             save_total_limit=3,
-            eval_delay=10,
+            eval_delay=self.config['eval_delay'],
         )
 
         self.training_args_binary = TrainingArguments(
@@ -169,9 +169,8 @@ class ActiveQA:
             report_to="none",
             push_to_hub=False,
             save_total_limit=3,
-            eval_delay=10,
+            eval_delay=self.config['eval_delay'],
         )
-
         self._reset_models()
 
         self.generation_config = GenerationConfig.from_pretrained(self.config['checkpoint_answer'])
@@ -364,11 +363,6 @@ class ActiveQA:
             torch.save(self.model_binary.state_dict(), os.path.join(save_path, 'model_binary.pt'))
 
     def emulate_active_learning(self, data: ActiveLearningData, strategy, save_path=None, retrain=True):
-        if not retrain:
-            self.training_args.eval_delay = 5
-            self.training_args_binary.eval_delay = 5
-            self._reset_models()
-
         document_ids = list(set(data.train_dataset.doc_ids))
 
         if save_path is not None and 'step.pkl' in os.listdir(save_path):
