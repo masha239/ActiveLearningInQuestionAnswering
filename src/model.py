@@ -285,7 +285,7 @@ class ActiveQA:
             scores.append((pool_dataset['document_id'][i], score))
 
         scores.sort(key=lambda x: -x[1])
-        return sorted([x[1] for x in scores[:best_ids_cnt]])
+        return sorted([x[0] for x in scores[:best_ids_cnt]])
 
     def evaluate(self, val_pool, val_answers, val_bert, val):
         pool = self._filter_pool(val_pool, val_bert)
