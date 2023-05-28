@@ -116,18 +116,6 @@ class ActiveLearningData(NamedTuple):
     val_answers: Dataset
 
 
-class CustomDataset(torch.utils.data.Dataset):
-    def __init__(self, input_ids, labels):
-        self.input_ids = torch.tensor(input_ids)
-        self.labels = torch.tensor(labels)
-
-    def __len__(self):
-        return len(self.input_ids)
-
-    def __getitem__(self, idx):
-        return self.input_ids[idx], self.labels[idx]
-
-
 class ActiveQA:
     def __init__(self, config):
         self.config = config
@@ -236,20 +224,18 @@ class ActiveQA:
 
     def _predict_probs(self, dataset, normalized=True):
         predictions = self.trainer.predict(dataset).predictions
-        new_dataset = CustomDataset(
-            torch.tensor([x + [0] * (self.config['max_length'] - len(x)) for x in dataset['input_ids']]),
-            predictions
+        new_dataset = Dataset.from_dict(
+            {
+            'input_ids': dataset['input_ids'],
+            'labels': predictions
+            }
         )
-        dataloader = data_utils.DataLoader(
-            new_dataset,
-            batch_size=self.config['per_device_eval_batch_size'],
-            shuffle=False
-        )
+        dataloader = self.trainer.get_eval_dataloader(new_dataset)
         probs_list = []
         labels_list = []
         with torch.no_grad():
-            for inputs, labels in dataloader:
-                inputs, labels = inputs.to(self.config['device']), labels.to(self.config['device'])
+            for batch in dataloader:
+                inputs, labels = batch['input_ids'].to(self.config['device']), batch['labels'].to(self.config['device'])
                 logits = self.model(input_ids=inputs, labels=labels).logits
                 probs = get_probs_from_logits(logits, labels, normalized)
                 probs_list += probs
