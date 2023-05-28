@@ -12,6 +12,8 @@ from transformers import T5ForConditionalGeneration, T5Tokenizer
 from src.metrics import compute_metrics, compute_metrics_binary
 from typing import NamedTuple
 from datasets import Dataset
+from src.extract_context import mean_pooling, cos
+from tqdm import tqdm
 
 
 def choose_best_pairs(probs, ids, part_ids):
@@ -254,6 +256,37 @@ class ActiveQA:
         pool = pool.filter(lambda sample: (sample['document_id'], sample['part_id']) in pairs)
         return pool
 
+    def extract_embeddings(self, dataset):
+        embeddings_list = []
+        dataloader = self.trainer_binary.get_eval_dataloader(dataset)
+        with torch.no_grad():
+            for batch in tqdm(dataloader):
+                inputs, masks = batch['input_ids'].to(self.config['device']), batch['attention_mask'].to(
+                    self.config['device'])
+                last_hidden_states = self.model_binary(inputs, masks, output_hidden_states=True).hidden_states[
+                    -1].detach().cpu()
+                embeddings_step = mean_pooling(last_hidden_states, batch['attention_mask'])
+                embeddings_list.append(embeddings_step)
+
+        embeddings = torch.concat(embeddings_list, axis=0)
+        return embeddings
+
+    def choose_best_idds(self, train_dataset, pool_dataset, best_ids_cnt):
+        train_embeddings = self.extract_embeddings(train_dataset)
+        pool_embeddings = self.extract_embeddings(pool_dataset)
+        n = pool_embeddings.shape[0]
+        m = train_embeddings.shape[0]
+        coef = self.config['idds_coef']
+        scores = []
+        for i in tqdm(range(n)):
+            pool_sum = sum([cos(pool_embeddings[i, :], pool_embeddings[j, :]).item() for j in range(n)])
+            train_sum = sum([cos(pool_embeddings[i, :], train_embeddings[j, :]).item() for j in range(m)])
+            score = coef * pool_sum / n - (1 - coef) * train_sum / m
+            scores.append((pool_dataset['document_id'][i], score))
+
+        scores.sort(key=lambda x: -x[1])
+        return sorted([x[1] for x in scores[:best_ids_cnt]])
+
     def evaluate(self, val_pool, val_answers, val_bert, val):
         pool = self._filter_pool(val_pool, val_bert)
         predictions = self.trainer.predict(pool.remove_columns('labels')).predictions
@@ -281,6 +314,12 @@ class ActiveQA:
         else:
             raise ValueError(f"Unsupported unsertainty strategy {self.config['unsertainty_strategy']}")
 
+    def filter_bert_best(self, bert):
+        bert_probs = self._predict_probs_binary(bert)
+        pairs = choose_best_pairs(bert_probs, bert['document_id'], bert['part_id'])
+        bert_filtered = bert.filter(lambda sample: (sample['document_id'], sample['part_id']) in pairs)
+        return bert_filtered
+
     def _choose_ids(self, data, ids_in_train, strategy, save_path=None, step=None):
         document_ids = set(data.train_dataset.doc_ids)
         document_ids = list(document_ids - ids_in_train)
@@ -303,10 +342,12 @@ class ActiveQA:
             bert_step = data.train_bert.dataset.filter(lambda x: x['document_id'] in pool_ids).remove_columns('labels')
             bert_probs = self._predict_probs_binary(bert_step)
             best_ids = self._best_ids_from_probs(bert_step['document_id'], bert_probs, best_ids_cnt)
+
         elif strategy == 'answers':
             pool_step = data.train_pool.filter(lambda x: x['document_id'] in pool_ids).remove_columns('labels')
             probs = self._predict_probs(pool_step)['prob']
             best_ids = self._best_ids_from_probs(pool_step['document_id'], probs, best_ids_cnt)
+
         elif strategy == 'binary+answers':
             bert_step = data.train_bert.dataset.filter(lambda x: x['document_id'] in pool_ids).remove_columns('labels')
             pool_step = self._filter_pool(data.train_pool, bert_step)
@@ -317,11 +358,20 @@ class ActiveQA:
                     pickle.dump({f'filtered_ids': pool_step['document_id']}, f)
                 with open(os.path.join(save_path, f'probs_{step}.pkl'), 'wb') as f:
                     pickle.dump({f'probs': probs}, f)
-                with open(os.path.join(save_path, f'best_ids_{step}.pkl'), 'wb') as f:
-                    pickle.dump({f'best_ids': best_ids}, f)
+
+        elif strategy == 'binary+idds':
+            bert_step = data.train_bert.dataset.filter(lambda x: x['document_id'] in pool_ids).remove_columns('labels')
+            bert_step_filtered = self.filter_bert_best(bert_step)
+            bert_in_train = data.train_bert.dataset.filter(lambda x: x['document_id'] in ids_in_train).remove_columns('labels')
+            bert_in_train_filtered = self.filter_bert_best(bert_in_train)
+            best_ids = self.choose_best_idds(bert_in_train_filtered, bert_step_filtered, best_ids_cnt)
+
         else:
             raise ValueError(f'Unsupported strategy {strategy}')
 
+        if save_path is not None:
+            with open(os.path.join(save_path, f'best_ids_{step}.pkl'), 'wb') as f:
+                pickle.dump({f'best_ids': best_ids}, f)
         return random_ids.union(set(best_ids))
 
     def _train_loop(self, data, ids_in_train, step, save_path=None, retrain=True):

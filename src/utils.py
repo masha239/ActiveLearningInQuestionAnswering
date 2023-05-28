@@ -64,10 +64,10 @@ def create_config(device, answer_type, model_dir=None, config_update=None):
         'num_train_epochs': 20,
         'device': device,
         'unsertainty_strategy': 'min_normalized_prob',
-        'start_document_cnt': 2000,
+        'start_document_cnt': 500,
         'active_learning_steps_cnt': 7,
-        'pool_document_cnt': 10000,
-        'step_document_cnt': 2000,
+        'pool_document_cnt': 2500,
+        'step_document_cnt': 500,
         'random_sample_fraction': 0.0,
         'model_output_dir': os.path.join(model_dir, 'model'),
         'log_path': os.path.join(model_dir, 'logs.pkl'),
@@ -76,6 +76,7 @@ def create_config(device, answer_type, model_dir=None, config_update=None):
         'per_device_train_batch_size_binary': 8,
         'per_device_eval_batch_size_binary': 8,
         'eval_delay': 10,
+        'idds_coef': 0.67,
     }
 
     if config_update is not None:
