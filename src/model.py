@@ -271,7 +271,7 @@ class ActiveQA:
         embeddings = torch.concat(embeddings_list, axis=0)
         return embeddings
 
-    def choose_best_idds(self, train_dataset, pool_dataset, best_ids_cnt):
+    def choose_best_idds(self, train_dataset, pool_dataset, best_ids_cnt, save_path=None, step=None):
         train_embeddings = self.extract_embeddings(train_dataset)
         pool_embeddings = self.extract_embeddings(pool_dataset)
         n = pool_embeddings.shape[0]
@@ -285,6 +285,9 @@ class ActiveQA:
             scores.append((pool_dataset['document_id'][i], score))
 
         scores.sort(key=lambda x: -x[1])
+        df = pd.DataFrame({'doc_id': [x[0] for x in scores], 'score': [x[1] for x in scores]})
+        if save_path is not None:
+            df.to_csv(os.path.join(save_path, f'scores_{step}.csv'))
         return sorted([x[0] for x in scores[:best_ids_cnt]])
 
     def evaluate(self, val_pool, val_answers, val_bert, val):
@@ -364,7 +367,7 @@ class ActiveQA:
             bert_step_filtered = self.filter_bert_best(bert_step)
             bert_in_train = data.train_bert.dataset.filter(lambda x: x['document_id'] in ids_in_train).remove_columns('labels')
             bert_in_train_filtered = self.filter_bert_best(bert_in_train)
-            best_ids = self.choose_best_idds(bert_in_train_filtered, bert_step_filtered, best_ids_cnt)
+            best_ids = self.choose_best_idds(bert_in_train_filtered, bert_step_filtered, best_ids_cnt, save_path, step)
 
         else:
             raise ValueError(f'Unsupported strategy {strategy}')
