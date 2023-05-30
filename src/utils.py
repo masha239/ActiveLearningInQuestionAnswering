@@ -66,7 +66,7 @@ def create_config(device, answer_type, model_dir=None, config_update=None):
         'unsertainty_strategy': 'min_normalized_prob',
         'start_document_cnt': 500,
         'active_learning_steps_cnt': 7,
-        'pool_document_cnt': 2500,
+        'pool_document_cnt': 5000,
         'step_document_cnt': 500,
         'random_sample_fraction': 0.0,
         'model_output_dir': os.path.join(model_dir, 'model'),
