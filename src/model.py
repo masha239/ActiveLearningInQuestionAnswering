@@ -138,7 +138,7 @@ class ActiveQA:
             push_to_hub=False,
             logging_dir='logs',
             load_best_model_at_end=True,
-            save_total_limit=3,
+            save_total_limit=5,
             eval_delay=self.config['eval_delay'],
         )
 
@@ -156,7 +156,7 @@ class ActiveQA:
             logging_dir='logs',
             report_to="none",
             push_to_hub=False,
-            save_total_limit=3,
+            save_total_limit=5,
             eval_delay=self.config['eval_delay'],
         )
         self._reset_models()
@@ -181,7 +181,7 @@ class ActiveQA:
             tokenizer=self.tokenizer,
             data_collator=self.data_collator,
             compute_metrics=compute_metrics,
-            callbacks=[EarlyStoppingCallback(early_stopping_patience=3)],
+            callbacks=[EarlyStoppingCallback(early_stopping_patience=5)],
         )
 
         self.model_binary = AutoModelForSequenceClassification.from_pretrained(
@@ -197,7 +197,7 @@ class ActiveQA:
             tokenizer=self.tokenizer_binary,
             data_collator=self.data_collator_binary,
             compute_metrics=compute_metrics_binary,
-            callbacks=[EarlyStoppingCallback(early_stopping_patience=3)],
+            callbacks=[EarlyStoppingCallback(early_stopping_patience=5)],
         )
 
     def load_from_disk(self, path):

@@ -57,7 +57,7 @@ def create_config(device, answer_type, model_dir=None, config_update=None):
         'checkpoint_binary': 'distilbert-base-uncased',
         'max_length': 512,
         'max_length_answer': max_length_answer,
-        'learning_rate': 1e-5,
+        'learning_rate': 1e-4,
         'weight_decay': 1e-2,
         'per_device_train_batch_size': 8,
         'per_device_eval_batch_size': 8,
@@ -71,11 +71,11 @@ def create_config(device, answer_type, model_dir=None, config_update=None):
         'random_sample_fraction': 0.0,
         'model_output_dir': os.path.join(model_dir, 'model'),
         'log_path': os.path.join(model_dir, 'logs.pkl'),
-        'learning_rate_binary': 1e-5,
+        'learning_rate_binary': 1e-4,
         'weight_decay_binary': 1e-2,
         'per_device_train_batch_size_binary': 8,
         'per_device_eval_batch_size_binary': 8,
-        'eval_delay': 10,
+        'eval_delay': 1,
         'idds_coef': 0.67,
     }
 
