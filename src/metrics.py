@@ -50,7 +50,7 @@ def compute_metrics(eval_pred, multilabel=False, calc_all=True):
         decoded_labels = [tokenizer.batch_decode(l, skip_special_tokens=True) for l in labels]
 
     result = dict()
-    rouge_result = rouge.compute(predictions=decoded_preds, references=decoded_labels, use_aggregator=True)
+    rouge_result = rouge.compute(predictions=decoded_preds, references=decoded_labels, use_aggregator=False)
     result['rouge1'] = np.mean(rouge_result['rouge1'])
     result['rouge1_std'] = np.std(rouge_result['rouge1'])
     result['rouge2'] = np.mean(rouge_result['rouge2'])
