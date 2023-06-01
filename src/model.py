@@ -138,8 +138,9 @@ class ActiveQA:
             push_to_hub=False,
             logging_dir='logs',
             load_best_model_at_end=True,
-            save_total_limit=5,
+            save_total_limit=4,
             eval_delay=self.config['eval_delay'],
+            metric_for_best_model='EM',
         )
 
         self.training_args_binary = TrainingArguments(
@@ -156,8 +157,9 @@ class ActiveQA:
             logging_dir='logs',
             report_to="none",
             push_to_hub=False,
-            save_total_limit=5,
+            save_total_limit=4,
             eval_delay=self.config['eval_delay'],
+            metric_for_best_model='roc_auc',
         )
         self._reset_models()
 
