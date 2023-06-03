@@ -144,7 +144,7 @@ class ActiveQA:
         )
 
         self.training_args_binary = TrainingArguments(
-            output_dir="binary_model",
+            output_dir=self.config['model_binary_output_dir'],
             learning_rate=self.config['learning_rate_binary'],
             per_device_train_batch_size=self.config['per_device_train_batch_size_binary'],
             per_device_eval_batch_size=self.config['per_device_eval_batch_size_binary'],

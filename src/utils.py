@@ -72,6 +72,7 @@ def create_config(device, answer_type, model_dir=None, config_update=None):
         'step_document_cnt': 500,
         'random_sample_fraction': 0.0,
         'model_output_dir': os.path.join(model_dir, 'model'),
+        'model_binary_output_dir': os.path.join(model_dir, 'model_binary'),
         'log_path': os.path.join(model_dir, 'logs.pkl'),
         'learning_rate_binary': 1e-5,
         'weight_decay_binary': 1e-2,
