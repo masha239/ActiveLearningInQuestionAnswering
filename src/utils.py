@@ -49,8 +49,10 @@ def create_config(device, answer_type, model_dir=None, config_update=None):
 
     if answer_type == 'short':
         max_length_answer = 32
+        eval_delay = 1
     else:
         max_length_answer = 512
+        eval_delay = 5
 
     config = {
         'checkpoint_answer': 't5-small',
@@ -65,7 +67,7 @@ def create_config(device, answer_type, model_dir=None, config_update=None):
         'device': device,
         'unsertainty_strategy': 'min_normalized_prob',
         'start_document_cnt': 500,
-        'active_learning_steps_cnt': 7,
+        'active_learning_steps_cnt': 15,
         'pool_document_cnt': 5000,
         'step_document_cnt': 500,
         'random_sample_fraction': 0.0,
@@ -75,7 +77,7 @@ def create_config(device, answer_type, model_dir=None, config_update=None):
         'weight_decay_binary': 1e-2,
         'per_device_train_batch_size_binary': 8,
         'per_device_eval_batch_size_binary': 8,
-        'eval_delay': 1,
+        'eval_delay': eval_delay,
         'idds_coef': 0.67,
     }
 

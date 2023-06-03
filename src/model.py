@@ -177,13 +177,18 @@ class ActiveQA:
             max_length=self.config['max_length'],
         )
 
+        if self.config['max_length'] == 32:
+            patience_cnt = 5
+        else:
+            patience_cnt = 3
+
         self.trainer = Seq2SeqTrainer(
             model=self.model,
             args=self.training_args,
             tokenizer=self.tokenizer,
             data_collator=self.data_collator,
             compute_metrics=compute_metrics,
-            callbacks=[EarlyStoppingCallback(early_stopping_patience=5)],
+            callbacks=[EarlyStoppingCallback(early_stopping_patience=patience_cnt)],
         )
 
         self.model_binary = AutoModelForSequenceClassification.from_pretrained(
@@ -199,7 +204,7 @@ class ActiveQA:
             tokenizer=self.tokenizer_binary,
             data_collator=self.data_collator_binary,
             compute_metrics=compute_metrics_binary,
-            callbacks=[EarlyStoppingCallback(early_stopping_patience=5)],
+            callbacks=[EarlyStoppingCallback(early_stopping_patience=patience_cnt)],
         )
 
     def load_from_disk(self, path):
