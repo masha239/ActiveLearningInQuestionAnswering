@@ -183,8 +183,8 @@ class ActiveQA:
             max_length=self.config['max_length'],
         )
 
-        if self.config['max_length'] == 32:
-            patience_cnt = 5
+        if self.config['max_length_answer'] == 32:
+            patience_cnt = 4
         else:
             patience_cnt = 3
 
