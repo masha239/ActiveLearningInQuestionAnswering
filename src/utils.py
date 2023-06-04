@@ -80,6 +80,7 @@ def create_config(device, answer_type, model_dir=None, config_update=None):
         'per_device_eval_batch_size_binary': 8,
         'eval_delay': eval_delay,
         'idds_coef': 0.67,
+        'use_pretrained_bert': False,
     }
 
     if config_update is not None:

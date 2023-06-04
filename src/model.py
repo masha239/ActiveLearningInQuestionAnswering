@@ -35,6 +35,12 @@ def get_probs_from_logits(logits, labels, normalized=True):
     return answer
 
 
+def convert_ids_to_question(row):
+    question_ids = [101] + row['input_ids'][3: row['input_ids'].index(6123)] + [102]
+    attention_mask = [1] * len(question_ids)
+    return {'input_ids': question_ids, 'attention_mask': attention_mask}
+
+
 class TrainDataset(torch.utils.data.Dataset):
     def __init__(self, dataset=None, coef=0.5, binary=True):
         if dataset is not None:
@@ -276,7 +282,9 @@ class ActiveQA:
         embeddings = torch.concat(embeddings_list, axis=0)
         return embeddings
 
-    def choose_best_idds(self, train_dataset, pool_dataset, best_ids_cnt, save_path=None, step=None):
+    def choose_best_idds(self, train_dataset, pool_dataset, best_ids_cnt, save_path=None, step=None, pretrained=False):
+        if not pretrained:
+            self._reset_models()
         train_embeddings = self.extract_embeddings(train_dataset)
         pool_embeddings = self.extract_embeddings(pool_dataset)
         n = pool_embeddings.shape[0]
@@ -372,7 +380,28 @@ class ActiveQA:
             bert_step_filtered = self.filter_bert_best(bert_step)
             bert_in_train = data.train_bert.dataset.filter(lambda x: x['document_id'] in ids_in_train).remove_columns('labels')
             bert_in_train_filtered = self.filter_bert_best(bert_in_train)
-            best_ids = self.choose_best_idds(bert_in_train_filtered, bert_step_filtered, best_ids_cnt, save_path, step)
+            best_ids = self.choose_best_idds(
+                bert_in_train_filtered,
+                bert_step_filtered,
+                best_ids_cnt,
+                save_path,
+                step,
+                pretrained=self.config['use_pretrained_bert'],
+            )
+
+        elif strategy == 'question_idds':
+            bert_step = data.train_bert.dataset.filter(lambda x: x['document_id'] in pool_ids and x['part_id'] == 0).remove_columns('labels')
+            bert_step_prepared = bert_step.map(convert_ids_to_question)
+            bert_in_train = data.train_bert.dataset.filter(lambda x: x['document_id'] in ids_in_train and x['part_id'] == 0).remove_columns('labels')
+            bert_in_train_prepared = bert_in_train.map(convert_ids_to_question)
+            best_ids = self.choose_best_idds(
+                bert_in_train_prepared,
+                bert_step_prepared,
+                best_ids_cnt,
+                save_path,
+                step,
+                pretrained=self.config['use_pretrained_bert']
+            )
 
         else:
             raise ValueError(f'Unsupported strategy {strategy}')
