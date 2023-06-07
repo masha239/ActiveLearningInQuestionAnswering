@@ -17,7 +17,7 @@ from tqdm import tqdm
 
 
 def cls_pooling(model_output):
-    return model_output[0][:,0]
+    return model_output[:,0]
 
 
 def choose_best_pairs(probs, ids, part_ids):
