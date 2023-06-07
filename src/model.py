@@ -12,8 +12,12 @@ from transformers import T5ForConditionalGeneration, T5Tokenizer
 from src.metrics import compute_metrics, compute_metrics_binary
 from typing import NamedTuple
 from datasets import Dataset
-from src.extract_context import mean_pooling, cos
+from src.extract_context import cos
 from tqdm import tqdm
+
+
+def cls_pooling(model_output):
+    return model_output[0][:,0]
 
 
 def choose_best_pairs(probs, ids, part_ids):
@@ -276,7 +280,7 @@ class ActiveQA:
                     self.config['device'])
                 last_hidden_states = self.model_binary(inputs, masks, output_hidden_states=True).hidden_states[
                     -1].detach().cpu()
-                embeddings_step = mean_pooling(last_hidden_states, batch['attention_mask'])
+                embeddings_step = cls_pooling(last_hidden_states)
                 embeddings_list.append(embeddings_step)
 
         embeddings = torch.concat(embeddings_list, axis=0)
